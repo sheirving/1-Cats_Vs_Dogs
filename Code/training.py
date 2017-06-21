@@ -75,4 +75,71 @@ def run_training():
     
     coord.join(threads)
     sess.close()
+#%%  Evaluate one image
+
+from PIL import Image  #PIL not support py3,so select Pillow (Pillow=PIL)
+import matplotlib.pyplot as plt
+import os
+
+def get_one_image(test):
+    '''
+    Randomly pick one image from training data
+    Return: ndarry
+    '''
+    n= len(test)
+    ind = np.random.randint(0,n)
+    img_dir = test[ind]
+    
+    image = Image.open(img_dir)
+    plt.imshow(image)
+    image = image.resize([227,227])
+    image = np.array(image)
+    return image
+
+def evaluate_one_image():
+    '''
+    Test one image against the saved models and parameters
+    '''
+    test_dir = '/home/llc/TF_test/Cats_Vs_Dogs/Data/test/'
+    #test,test_label = input_data.get_files(test_dir)
+    test_image = []
+    for file in os.listdir(test_dir):
+        test_image.append(test_dir + file)
+        
+    test_image = list(test_image)
+    image_array = get_one_image(test_image)
+    
+    with tf.Graph().as_default():
+        BATCH_SIZE = 1
+        N_CLASSES = 2
+        
+        image  = tf.cast(image_array,tf.float32)
+        image = tf.image.per_image_standardization(image)
+        image = tf.reshape(image,[1,227,227,3])
+        logit = model.inference(image,BATCH_SIZE,N_CLASSES)
+        logit = tf.nn.softmax(logit)
+        
+        x = tf.placeholder(tf.float32,shape=[227,227,3])
+        
+        logs_train_dir = '/home/llc/TF_test/Cats_Vs_Dogs/logs/'
+        
+        saver = tf.train.Saver()
+        
+        with tf.Session() as sess:
+            print ("Reading checkpoint...")
+            ckpt = tf.train.get_checkpoint_state(logs_train_dir)
+            if ckpt and ckpt.model_checkpoint_path:
+                global_step = ckpt.model_checkpoint_path.split('/')[-1].split('-')[-1]
+                saver.restore(sess, ckpt.model_checkpoint_path)
+                print('Loading success, global_step is %s' % global_step)
+            else:
+                print('No checkpoint file found')
+                
+            prediction = sess.run(logit, feed_dict={x: image_array})
+            max_index = np.argmax(prediction)
+             
+            if max_index==0:
+                print('This is a cat with possibility %.6f' %prediction[:, 0])
+            else:
+                print('This is a dog with possibility %.6f' %prediction[:, 1])
     
